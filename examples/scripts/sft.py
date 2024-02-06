@@ -69,6 +69,10 @@ if __name__ == "__main__":
     args, training_args, model_config = parser.parse_args_into_dataclasses()
     training_args.gradient_checkpointing_kwargs = dict(use_reentrant=False)
 
+    training_args.bf16=True
+    training_args.bf16_full_eval=True
+
+
     ################
     # Model & Tokenizer
     ################
@@ -88,14 +92,22 @@ if __name__ == "__main__":
         quantization_config=quantization_config,
     )
     tokenizer = AutoTokenizer.from_pretrained(model_config.model_name_or_path, use_fast=True)
-    tokenizer.pad_token = tokenizer.eos_token
+    # tokenizer.pad_token = tokenizer.eos_token
+    tokenizer.pad_token = tokenizer.unk_token
 
     ################
     # Dataset
     ################
-    raw_datasets = load_dataset(args.dataset_name)
-    train_dataset = raw_datasets["train"]
-    eval_dataset = raw_datasets["test"]
+    if args.dataset_name.endswith(".json"):
+        train_dataset = load_dataset('json', data_files=args.dataset_name, split='train')
+        # eval_dataset = load_dataset('json', data_files=args.dataset_name, split='train') None
+        eval_dataset =  None
+
+
+    else:
+        raw_datasets = load_dataset(args.dataset_name)
+        train_dataset = raw_datasets["train"]    
+        eval_dataset = raw_datasets["test"] if "test" in raw_datasets else None
 
     ################
     # Training
@@ -105,8 +117,8 @@ if __name__ == "__main__":
         model_init_kwargs=model_kwargs,
         args=training_args,
         train_dataset=train_dataset,
-        eval_dataset=eval_dataset,
-        dataset_text_field="text",
+        # eval_dataset=eval_dataset,
+        dataset_text_field=args.dataset_text_field,
         max_seq_length=args.max_seq_length,
         tokenizer=tokenizer,
         packing=True,
